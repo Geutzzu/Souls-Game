@@ -1,6 +1,6 @@
 # SoulsGame
 
-Etapa 1 images:
+## Etapa 1 images:
 
 <img width="2652" height="1143" alt="image" src="https://github.com/user-attachments/assets/74b63fac-7a28-44f4-922e-8184963868fa" />
 
