@@ -176,6 +176,22 @@ Sistemul de input este implementat prin urmatoarele actiuni definite in Unreal:
 
 **Sistemul de moarte** implementeaza evenimentul **Die** din interfata: dezactiveaza componenta de miscare, activeaza simularea fizicii pentru ragdoll.
 
+### 5.6 Clase Auxiliare si Complementare
+
+Proiectul include o serie de clase auxiliare care extind si complementeaza sistemele principale descrise anterior:
+
+**Proiectile si Efecte**: **BP_HomingArrow** este proiectilul principal pentru arcul jucatorului, implementand comportament de urmarire automata (homing) catre tinta blocata folosind component-ul **ProjectileMovement** cu optiunea homing activata. **BP_GlowingProjectile** adauga efecte vizuale emissive si lumina dinamica proiectilelor. **BP_SplinePathActor** defineste traiectorii predefinite pentru proiectile sau alte obiecte care urmaresc spline-uri.
+
+**Sistemul AI**: **BP_Enemy_Boss** extinde **BP_Enemy** cu atacuri suplimentare (atac mare, atac cu explozie) si animatii specifice bossului Grux. **BP_AI_Enemy** si **BP_AI_Enemy_Boss** sunt controller-ele AI care ruleaza **Behavior Tree**-urile respective (**BT_Enemy**, **BT_Boss**). Task-urile personalizate (**Task_SwordAttack**, **Task_BigAttack**, **Task_ChaseTarget**) implementeaza actiunile specifice din arborele de comportament. **BD_AI** este Blackboard-ul partajat care stocheaza datele de decizie AI precum referinta la jucator si distanta curenta.
+
+**Interfata Utilizator**: **WB_Hud** este widget-ul principal HUD care contine **WB_PlayerHealth** pentru bara de viata a jucatorului. **WB_EnemyHealth** este afisat pe inamici prin WidgetComponent in spatiul lumii. **WB_TargetLock** si **BP_TargetLockWidget** afiseaza indicatorul de blocare pe tinta.
+
+**Animation Notifies**: **BP_Notify_Damage** si **BP_Notify_PointDamage** sunt notificari personalizate care se plaseaza in Animation Montages pentru a declansa evenimentele **Begin Sword Trace** si **Point Damage Trace** din interfata BPI_Damage la momente precise din animatie.
+
+**Generare Procedurala**: Componentele capelei (**BP_Part_Dome**, **BP_Part_Door**, **BP_Part_Pillar**, **BP_Part_Wall**) sunt actori simpli cu mesh-uri statice, spawn-ati si pozitionati de **BP_ChapelGenerator**.
+
+**Tipuri de Date**: Enumeratiile **E_Stats** si **E_MovementDirection** definesc tipuri pentru sistemul de statistici si directii de miscare. Structura **S_SpeedZone** stocheaza parametrii zonelor de viteza pentru **BPC_SplineFollower**. Interfata **BPI_Damage** declara evenimentele comune pentru damage trace si moarte, implementate de jucator si inamici.
+
 ---
 
 ## 6. Algoritmi
