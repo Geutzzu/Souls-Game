@@ -1,7 +1,5 @@
 # **Broken Guardians**: Proiect pentru Dezvoltarea Jocurilor 3D in Unreal Engine 5
 
----
-
 ## Cuprins
 
 1. [Descrierea Detaliata a Jocului](#1-descrierea-detaliata-a-jocului)
