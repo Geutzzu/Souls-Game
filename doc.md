@@ -182,7 +182,7 @@ Proiectul include o serie de clase auxiliare care extind si complementeaza siste
 
 **Proiectile si Efecte**: **BP_HomingArrow** este proiectilul principal pentru arcul jucatorului, implementand comportament de urmarire automata (homing) catre tinta blocata folosind component-ul **ProjectileMovement** cu optiunea homing activata. **BP_GlowingProjectile** adauga efecte vizuale emissive si lumina dinamica proiectilelor. **BP_SplinePathActor** defineste traiectorii predefinite pentru proiectile sau alte obiecte care urmaresc spline-uri.
 
-**Sistemul AI**: **BP_Enemy_Boss** extinde **BP_Enemy** cu atacuri suplimentare (atac mare, atac cu explozie) si animatii specifice bossului Grux. **BP_AI_Enemy** si **BP_AI_Enemy_Boss** sunt controller-ele AI care ruleaza **Behavior Tree**-urile respective (**BT_Enemy**, **BT_Boss**). Task-urile personalizate (**Task_SwordAttack**, **Task_BigAttack**, **Task_ChaseTarget**) implementeaza actiunile specifice din arborele de comportament. **BD_AI** este Blackboard-ul partajat care stocheaza datele de decizie AI precum referinta la jucator si distanta curenta.
+**Sistemul AI**: **BP_Enemy_Boss** extinde **BP_Enemy** cu atacuri suplimentare (atac mare, atac cu explozie) si animatii specifice bossului Grux. **BP_AI_Enemy** si **BP_AI_Enemy_Boss** sunt controller-ele AI care ruleaza **Behavior Tree**-urile respective (**BT_Enemy**, **BT_Boss**). Task-urile (**Task_SwordAttack**, **Task_BigAttack**, **Task_ChaseTarget**) implementeaza actiunile specifice din arborele de comportament. **BD_AI** este Blackboard-ul partajat care stocheaza datele de decizie AI precum referinta la jucator si distanta curenta.
 
 **Interfata Utilizator**: **WB_Hud** este widget-ul principal HUD care contine **WB_PlayerHealth** pentru bara de viata a jucatorului. **WB_EnemyHealth** este afisat pe inamici prin WidgetComponent in spatiul lumii. **WB_TargetLock** si **BP_TargetLockWidget** afiseaza indicatorul de blocare pe tinta.
 
@@ -196,25 +196,240 @@ Proiectul include o serie de clase auxiliare care extind si complementeaza siste
 
 ## 6. Algoritmi
 
-<!-- PLACEHOLDER: De completat cu descrierea algoritmilor, blueprint screenshots si analiza de complexitate -->
-
 ### 6.1 Algoritm Arc/Proiectile
-<!-- De completat -->
 
-### 6.2 Sistem de Coliziuni
-<!-- De completat -->
+Sistemul de proiectile foloseste componenta **ProjectileMovementComponent** din Unreal Engine pentru a crea sageti cu comportament de urmarire (homing). Arhitectura implica doua Blueprint-uri: **BPC_Combat** (lansare) si **BP_HomingArrow** (comportament).
 
-### 6.3 Generare Procedurala - Capela
-<!-- De completat -->
+![alt text](arrow_attack.png)
 
-### 6.4 Implementare Spline cu Zone de Viteza
-<!-- De completat -->
+#### 6.1.1 Lansarea Proiectilului
+
+Cand jucatorul executa atacul cu arcul, **BPC_Combat** spawn-eaza actorul `BP_HomingArrow` la pozitia socket-ului `hand_l_bow` de pe Skeletal Mesh. La spawn, se transmit doi parametri esentiali:
+- **Owner** = jucatorul (pentru filtrarea coliziunilor)
+- **targetToChase** = actorul tinta blocat (Target Lock Actor)
+
+#### 6.1.2 Comportamentul de Urmarire (Homing)
+
+In **BeginPlay** al sagetii, daca `targetToChase` este valid, se configureaza componenta de homing:
+
+```
+ProjectileMovement.HomingTargetComponent = targetToChase.RootComponent
+```
+
+Componenta **ProjectileMovementComponent** are proprietati predefinite pentru homing:
+- **bIsHomingProjectile** = true (activeaza urmarirea)
+- **HomingAccelerationMagnitude** = acceleratia catre tinta
+- **HomingTargetComponent** = componenta scene a tintei
+
+Unreal Engine gestioneaza intern ajustarea traiectoriei la fiecare frame.
+
+#### 6.1.3 Filtrarea Coliziunilor
+
+La evenimentul **OnActorBeginOverlap**, sageata verifica daca actorul cu care s-a suprapus este diferit de Owner:
+
+```
+Daca OtherActor != GetOwner():
+    DestroyActor()
+```
+
+Aceasta previne auto-distrugerea sagetii la coliziunea cu jucatorul care a lansat-o.
+
+**Complexitate timp**: O(1) per frame pentru calculul homing (efectuat de engine).
+**Complexitate spatiu**: O(1) - un singur actor activ per proiectil.
+
+### 6.2 Generare Procedurala - Capela
+
+Blueprint-ul **BP_ChapelGenerator** construieste o capela circulara folosind coordonate polare convertite in coordonate carteziene. Algoritmul distribuie stalpi si pereti uniform pe circumferinta unui cerc.
+
+#### 6.2.1 Distributia Unghiulara
+
+Pentru a plasa **n** elemente egal distantate pe un cerc, unghiul dintre elemente consecutive este:
+
+```
+anglePerStep = 360° / numberOfWalls
+```
+
+La fiecare iteratie **i** a buclei ForLoop (de la 0 la numberOfWalls-1):
+
+```
+currentAngle = anglePerStep * i
+nextAngle = anglePerStep * (i + 1)
+```
+
+Aceste unghiuri definesc pozitiile a doua puncte consecutive pe cerc: **PointA** (stalpul curent) si **PointB** (stalpul urmator).
+
+#### 6.2.2 Conversia Polar-Cartezian
+
+Pozitia fiecarui punct pe cerc se calculeaza folosind formulele standard de conversie din coordonate polare (unghi, raza) in coordonate carteziene (X, Y):
+
+```
+PointA.X = Cos(currentAngle) * roomRadius
+PointA.Y = Sin(currentAngle) * roomRadius
+PointA.Z = 0
+
+PointB.X = Cos(nextAngle) * roomRadius
+PointB.Y = Sin(nextAngle) * roomRadius
+PointB.Z = 0
+```
+
+![Calculul pozitiilor folosind Sin si Cos](trig_chappel.png)
+
+Blueprint-ul foloseste nodurile **DegCos** si **DegSin** care accepta unghiuri in grade (nu radiani), simplificand calculele.
+
+#### 6.2.3 Plasarea Componentelor
+
+**Stalpi**: Se spawn-eaza la pozitia `ActorLocation + PointA`. Rotatia se calculeaza cu **FindLookAtRotation** de la PointA catre centru (origine), astfel incat stalpii sa fie orientati radial.
+
+**Pereti**: Se plaseaza la punctul de mijloc dintre PointA si PointB:
+```
+wallPosition = (PointA + PointB) / 2 + ActorLocation
+```
+Rotatia peretilor se calculeaza cu **FindLookAtRotation** de la wallPosition catre centru.
+
+**Cupola**: Se spawn-eaza o singura data la centrul capelei, dupa ce bucla principala se termina.
+
+#### 6.2.4 Scalarea Dinamica
+
+Inaltimea stalpilor si peretilor se controleaza prin scalare pe axa Z:
+```
+pillarScale.Z = pillarHeight / pillarMeshHeight
+wallScale.Z = wallHeight / wallMeshHeight
+```
+
+Aceasta permite ajustarea dimensiunilor fara a modifica mesh-urile originale.
+
+**Complexitate timp**: O(n) unde n = numberOfWalls.
+**Complexitate spatiu**: O(n) pentru stocarea actorilor generati in array-ul `generatedActors`.
+
+### 6.3 Implementare Spline cu Zone de Viteza
+
+Sistemul de spline combina doua componente: **BP_SplinePathActor** pentru generarea traseului si **BPC_SplineFollower** pentru deplasarea pe traseu cu viteza variabila.
+
+#### 6.3.1 Generare Aleatorie a Traseului
+
+Functia **GenerateRandomPath** construieste un spline procedural folosind viraj-uri de 90 de grade. Algoritmul mentine doua variabile locale: **CurrentLocation** (pozitia curenta) si **CurrentDirection** (vectorul directiei curente, initial `(1, 0, 0)`).
+
+**Problema matematica**: Pentru a efectua un viraj de 90 grade in plan 2D, trebuie aplicata o matrice de rotatie. In loc sa folosim functii trigonometrice costisitoare, ne folosim de faptul ca rotatia cu 90 grade are o forma simplificata:
+
+```
+Rotatie dreapta (+90°):  X_nou = -Y_vechi,  Y_nou = X_vechi
+Rotatie stanga  (-90°):  X_nou = Y_vechi,   Y_nou = -X_vechi
+```
+
+![alt text](left_and_right_turns_in_spline.png)
+
+Blueprint-ul implementeaza aceste formule prin **Break Vector** pentru a extrage componentele X si Y, inmultire cu -1 pentru negare, si **Make Vector** pentru a reconstrui vectorul rotit. Decizia stanga/dreapta este luata folosind **RandomBool** la fiecare iteratie.
+
+Dupa rotatie, noua pozitie se calculeaza: `CurrentLocation = CurrentLocation + CurrentDirection * RandomFloatInRange(MinLength, MaxLength)`. Punctul rezultat este adaugat la spline cu tip **Linear** pentru segmente drepte.
+
+**Complexitate timp**: O(n) unde n = NumSegments. Fiecare segment necesita operatii constante (random, inmultiri vectoriale, adaugare punct).
+**Complexitate spatiu**: O(n) pentru stocarea punctelor spline-ului.
+
+#### 6.3.2 Miscarea Bidirectionala pe Spline
+
+Componenta **BPC_SplineFollower** urmareste pozitia pe spline folosind variabila **currentDistance** care reprezinta distanta parcursa de-a lungul curbei. La fiecare **Tick**:
+
+1. Se calculeaza viteza curenta din **baseSpeed** si zona de viteza activa
+2. Se actualizeaza distanta: `currentDistance += movementSpeed * direction * DeltaTime`
+3. Variabila **direction** este +1 pentru deplasare inainte si -1 pentru inapoi
+4. Se obtine pozitia pe spline cu **GetLocationAtDistanceAlongSpline(currentDistance)**
+5. Actorul parinte este mutat la aceasta pozitie
+
+**Inversarea directiei** se produce cand `currentDistance` depaseste lungimea totala a spline-ului sau scade sub zero. Daca **changeDirectionOnEnd** este activ, se inverseaza valoarea lui **direction**. Alternativ, **loopInfinitely** reseteaza distanta la capatul opus pentru miscare continua.
+
+![alt text](change_on_end_logic.png)
+
+**Complexitate timp per frame**: O(1) pentru actualizarea distantei, O(log n) pentru interpolare pe spline (intern in Unreal).
+
+#### 6.3.3 Zonele de Viteza
+
+Array-ul **speedZones** contine structuri **S_SpeedZone**, fiecare definind un interval de distanta si un multiplicator de viteza. Functia **Calculate Current Speed** parcurge array-ul si verifica daca **currentDistance** se afla in intervalul fiecarei zone:
+
+```
+Pentru fiecare zona in speedZones:
+    Daca currentDistance >= zona.StartDistance SI currentDistance <= zona.EndDistance:
+        Return baseSpeed * zona.SpeedMultiplier
+Return baseSpeed  // viteza implicita daca nu e in nicio zona
+```
+
+Aceasta abordare permite definirea de zone de accelerare, incetinire sau oprire de-a lungul traseului, utila pentru efecte gameplay precum rampe sau obstacole.
+
+**Complexitate timp**: O(k) unde k = numarul de zone de viteza.
+**Complexitate spatiu**: O(k) pentru stocarea zonelor.
 
 ---
 
 ## 7. Unelte de Inteligenta Artificiala din Unreal
 
-<!-- PLACEHOLDER: De completat cu AI tools folosite -->
+Sistemul AI al inamicilor foloseste **Behavior Trees** pentru logica decizionala si **Blackboard** pentru stocarea datelor partajate intre noduri.
+
+### 7.1 Structura Behavior Tree
+
+Arborele de comportament **BT_Boss** este organizat ierarhic:
+
+![alt text](behavior_tree.png)
+
+- **ROOT** → **State Selector** (nod Selector)
+  - **Idle Sequence** - activat cand `seeingTarget` NU este setat
+  - **Chasing Sequence** - activat cand `seeingTarget` ESTE setat
+    - **Task_ChaseTarget** - urmareste jucatorul
+    - **Attack Sequence** - executa atacuri in ordine:
+      - Task_SwordAttack → Wait(0.5s) → Task_BigAttack → Wait(2.0s)
+
+Nodurile **Blackboard Based Condition** actioneaza ca decoratori, permitand sau blocand executia ramurilor in functie de starea variabilelor din Blackboard.
+
+### 7.2 Blackboard
+
+Blackboard-ul (memoria inamicului) contine urmatoarele:
+
+| Cheie | Tip | Descriere |
+|-------|-----|-----------|
+| SelfActor | Actor | Referinta la inamicul controlat |
+| seeingTarget | Boolean | Indica daca inamicul vede jucatorul |
+| targetActor | Actor | Referinta la jucatorul detectat |
+
+### 7.3 Task-uri Custom
+
+Toate task-urile extind clasa **BTTask_BlueprintBase** si folosesc evenimentul **ReceiveExecuteAI** care furnizeaza `OwnerController` si `ControlledPawn`.
+
+#### 7.3.1 Task_ChaseTarget
+
+Acest task muta inamicul catre jucator:
+
+1. Citeste `targetActor` din Blackboard folosind **GetBlackboardValueAsObject**
+2. Cast la Actor
+3. Apeleaza **AI MoveTo** cu:
+   - Pawn = ControlledPawn
+   - TargetActor = targetActor din Blackboard
+   - AcceptanceRadius = 120 unitati
+4. La **OnSuccess** → `FinishExecute(true)`
+5. La **OnFail** → `FinishExecute(false)`
+
+![alt text](task_chase.png)
+
+#### 7.3.2 Task_SwordAttack si Task_BigAttack
+
+Aceste task-uri partajeaza acelasi pattern de executie:
+
+1. Verifica daca ControlledPawn implementeaza interfata **BPI_Enemy** folosind `DoesImplementInterface`
+2. Daca DA:
+   - Apeleaza metoda de interfata (`SwordAttack` sau `BigAttack`) pe ControlledPawn
+   - Primeste `Duration` ca output din apelul de interfata
+   - Foloseste **Delay** cu durata returnata pentru a astepta finalizarea animatiei
+   - `FinishExecute(true)`
+3. Daca NU:
+   - `FinishExecute(false)` - task-ul esueaza
+
+![alt text](task_big_attack.png)
+
+### 7.4 Interfata BPI_Enemy
+
+Interfata **BPI_Enemy** defineste contractul pentru comportamentele de atac ale inamicilor:
+
+- **SwordAttack()** → returneaza `Duration` (durata animatiei)
+- **BigAttack()** → returneaza `Duration` (durata animatiei)
+
+Aceasta arhitectura permite task-urilor din Behavior Tree sa ramana generice, delegand implementarea specifica fiecarui tip de inamic.
 
 ---
 
