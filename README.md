@@ -62,7 +62,7 @@ Jocul se afla intr-o stare functionala de prototip, cu accent pe sistemele funda
 - **Sistem de operare:** macOS (dezvoltat pe MacBook Pro M4 Pro), compatibil Windows 10/11
 - **Spatiu pe disc:** ~50 GB (proiect complet cu assets)
 - **Memorie RAM necesara:** minimum 16 GB, recomandat 24 GB (dezvoltarea a fost realizata pe 24gb de ram)
-- **IDE/Build Tools:** Xcode (pentru macOS)
+- **Build Tools:** Xcode (pentru macOS)
 - **Pachete aditionale:** Niciuna
 - **Conexiune la retea:** Nu este necesara (joc single-player offline)
 - **Date salvate:** Jocul nu implementeaza inca un sistem de save; datele de configurare sunt stocate in folderul `Saved/Config/`
